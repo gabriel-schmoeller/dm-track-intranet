@@ -1,0 +1,37 @@
+body {
+    padding-top: 50px;
+    padding-bottom: 20px;
+}
+
+.inline-block {
+    display:inline-block;
+    vertical-align: top;
+}
+
+.accordion-toggle, .uib-tab {
+    cursor: pointer;
+}
+
+#loaderDiv {
+   position: fixed;
+   top: 0;
+   right: 0;
+   bottom: 0;
+   left: 0;
+   z-index: 1100;
+   background-color: white;
+   opacity: .7;
+}
+
+.ajax-loader {
+   position: absolute;
+   left: 50%;
+   top: 50%;
+   margin-left: -50px; /* -1 * image width / 2 */
+   margin-top: -50px; /* -1 * image height / 2 */
+   display: block;
+}
+
+.navbar-brand:focus {
+   outline: none !important;
+}

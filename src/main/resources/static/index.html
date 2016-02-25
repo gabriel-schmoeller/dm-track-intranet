@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html ng-app="timeTracking">
+<head>
+    <meta charset="UTF-8">
+    <title>Ponto</title>
+    <link rel="stylesheet" type="text/css" href="css/app.css">
+    <link rel="stylesheet" type="text/css" href="bower_components/bootstrap/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" type="text/css" href="bower_components/sweetalert/dist/sweetalert.css">
+    <link rel="stylesheet" type="text/css" href="bower_components/ui-select/dist/select.min.css">
+    <link rel="icon" href="img/favicon.png">
+</head>
+<body ng-controller="MainController">
+<div id="loaderDiv" loader>
+    <img src="img/loader.gif" class="ajax-loader"/>
+</div>
+<nav class="navbar navbar-inverse navbar-fixed-top">
+    <div class="container">
+        <div class="navbar-header">
+            <button type="button" class="navbar-toggle" ng-init="navCollapsed = true" ng-click="navCollapsed = !navCollapsed">
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+                <span class="icon-bar"></span>
+            </button>
+            <a class="navbar-brand" href="#">Folha ponto</a>
+        </div>
+
+        <div class="collapse navbar-collapse" ng-class="!navCollapsed && 'in'">
+            <div class="navbar-right">
+                <form name="loginForm" ng-hide="username" class="navbar-form" ng-submit="loginForm.$valid && login()">
+                    <div class="form-group" ng-class="{ 'has-error': loginForm.user.$invalid && !loginForm.user.$pristine}">
+                        <input type="text" placeholder="Usuário" ng-model="credentials.user" name="user"
+                               class="form-control" required>
+                    </div>
+                    <div class="form-group" ng-class="{ 'has-error': loginForm.pass.$invalid && !loginForm.pass.$pristine}">
+                        <input type="password" placeholder="Senha" ng-model="credentials.pass" name="pass"
+                               class="form-control" required>
+                    </div>
+                    <input type="submit" ng-disabled="loginForm.$invalid" class="btn btn-success" value="Login">
+                </form>
+                <div ng-show="username">
+                    <div class="navbar-text">
+                        <strong>{{username}} </strong>
+                    </div>
+                    <button class="btn btn-danger navbar-btn" ng-click="logout()" ng-show="username">Logout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</nav>
+<div class="jumbotron">
+    <div class="container">
+        <div class="col-md-6">
+            <p>
+                <strong>Pontos hoje:</strong> <small>{{today.timeTracks.join(" - ")}}</small>
+                <button type="button" ng-show="username" class="btn btn-default" aria-hidden="true"
+                        uib-tooltip="Atualizar pontos de hoje" onclick="this.blur()" ng-click="requestTodayReport()"
+                        tooltip-append-to-body="true">
+                    <span class="glyphicon glyphicon-refresh"></span>
+                </button>
+            </p>
+            <p>
+                <strong>Horas hoje:</strong> <small>{{today.todayTime}}</small>
+            </p>
+            <p><strong>Horário estimado de saída:</strong> <small>{{today.estimatedEnd}}</small></p>
+        </div>
+        <div class="col-md-6">
+            <p>
+                <strong>Datas baixadas desde:</strong> <small>{{ftLocalDate | date:'dd/MM/yyyy'}}</small>
+                <button type="button" class="btn btn-default" aria-hidden="true" ng-show="username" ng-click="openDownMonths()"
+                        onclick="this.blur();" uib-tooltip="Baixar mais datas" tooltip-append-to-body="true">
+                    <span class="glyphicon glyphicon-download-alt"></span>
+                </button>
+            </p>
+            <p>
+                <strong>Saldo inicial ({{actualBalance.initialDay | date:'dd/MM/yyyy'}}):</strong>
+                <small ng-class="durationClass(actualBalance.initialBalance)">{{actualBalance.initialBalance}}</small>
+                <button type="button" onclick="this.blur()" ng-click="openUpdateInitialBalance()" class="btn btn-default"
+                        aria-hidden="true" ng-show="username" uib-tooltip="Alterar" tooltip-append-to-body="true">
+                    <span class="glyphicon glyphicon-edit"></span>
+                </button>
+            </p>
+            <p>
+                <strong>Saldo atual:</strong>
+                <small ng-class="durationClass(actualBalance.actualBalance)">{{actualBalance.actualBalance}}</small>
+                <button type="button" ng-show="username" class="btn btn-default" aria-hidden="true" onclick="this.blur()"
+                        uib-tooltip="Atualizar tudo" ng-click="tryLogin()" tooltip-append-to-body="true">
+                    <span class="glyphicon glyphicon-refresh"></span>
+                </button>
+            </p>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <uib-accordion close-others="oneAtATime" ng-if="username">
+        <uib-accordion-group heading="Utilitários">
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <strong>Calcular saldo*</strong>
+                </div>
+                <div class="panel-body">
+                    <form name="calculoSaldo" class="form-inline" ng-submit="calculoSaldo.$valid && calcBalance()">
+                        <div class="form-group">
+                            <label for="from"><p><strong>De </strong></p></label>
+                            <div class="input-group" ng-class="{ 'has-error': calculoSaldo.de.$invalid && !calculoSaldo.de.$pristine}">
+                                <input id="from" type="text" class="form-control" uib-datepicker-popup="dd/MM/yyyy"
+                                       ng-pattern="/^(\d{2})/(\d{2})/(\d{4})$/" ng-model="balanceCalc.ftDate"
+                                       is-open="balanceCalc.ftDateOpened" name="de" required/>
+                                    <span class="input-group-btn">
+                                        <button type="button" class="btn btn-default" ng-click="balanceCalc.ftDateOpened=true">
+                                            <span class="glyphicon glyphicon-calendar"></span>
+                                        </button>
+                                    </span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="to"><p><strong> até </strong></p></label>
+                            <div class="input-group" ng-class="{ 'has-error': calculoSaldo.ate.$invalid && !calculoSaldo.ate.$pristine}">
+                                <input id="to" type="text" class="form-control" uib-datepicker-popup="dd/MM/yyyy"
+                                       ng-pattern="/^(\d{2})/(\d{2})/(\d{4})$/" ng-model="balanceCalc.ltDate"
+                                       is-open="balanceCalc.ltDateOpened" name="ate" required/>
+                                    <span class="input-group-btn">
+                                        <button type="button" class="btn btn-default" ng-click="balanceCalc.ltDateOpened=true">
+                                            <span class="glyphicon glyphicon-calendar"></span>
+                                        </button>
+                                        <button type="submit" class="btn btn-default" ng-show="username" ng-disabled="calculoSaldo.$invalid"
+                                                uib-tooltip="Calcular" onclick="this.blur()" tooltip-append-to-body="true">
+                                            <span class="glyphicon glyphicon-share-alt"></span>
+                                        </button>
+                                    </span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <p><strong> : <span ng-class="durationClass(balanceCalc.result)">{{balanceCalc.result}}</span></strong></p>
+                        </div>
+                    </form>
+                    <small>
+                        * Saldo calculado baseado apenas nos saldos de cada dia entre o período selecionado, não considera o saldo
+                        inicial de {{actualBalance.initialBalance}} a partir do dia {{actualBalance.initialDay | date:'dd/MM/yyyy'}}.
+                    </small>
+                </div>
+            </div>
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <strong>Abrir chamado </strong>
+                </div>
+                <div class="panel-body">
+                    <form name="ticketToDayForm" class="form-inline" ng-submit="ticketToDayForm.$valid && calcBalance()">
+                        <div class="form-group">
+                            <label for="ticketDay"><p><strong>Para o dia </strong></p></label>
+                            <div class="input-group" ng-class="{ 'has-error': ticketToDayForm.data.$invalid && !ticketToDayForm.data.$pristine}">
+                                <input id="ticketDay" type="text" class="form-control" uib-datepicker-popup="dd/MM/yyyy"
+                                       ng-pattern="/^(\d{2})/(\d{2})/(\d{4})$/" ng-model="ticketToDay.date"
+                                       is-open="ticketToDay.dateOpened" name="data" required/>
+                                <span class="input-group-btn">
+                                    <button type="button" class="btn btn-default" ng-click="ticketToDay.dateOpened=true">
+                                        <span class="glyphicon glyphicon-calendar"></span>
+                                    </button>
+                                    <button type="button" class="btn btn-default" aria-hidden="true"
+                                            ng-click="openTicket()" uib-tooltip="Abrir chamado"
+                                            tooltip-append-to-body="true">
+                                        <span class="glyphicon glyphicon-earphone"></span>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </uib-accordion-group>
+    </uib-accordion>
+    <div class="row">
+        <div class="col-md-3">
+            <form class="form-inline">
+                <div class="form-group">
+                    <div class="input-group">
+                        <div class="input-group-addon">
+                            <label for="ano">Ano</label>
+                        </div>
+                        <select class="form-control" id="ano" ng-model="year" ng-change="requestDailyReports()"
+                                ng-options="y as y for y in localYears">
+                        </select>
+                    </div>
+                </div>
+            </form>
+            <br />
+        </div>
+        <div class="col-md-9">
+            <uib-accordion close-others="oneAtATime">
+                <uib-accordion-group heading="Contrato de horas por dia">
+                    <button type="button" class="btn btn-default pull-right hidden" aria-hidden="true" uib-tooltip="Alterar"
+                            tooltip-append-to-body="true">
+                        <span class="glyphicon glyphicon-edit"></span>
+                    </button>
+                    <p ng-repeat="contract in timeContract">
+                        <strong>
+                            {{contract.ftDate | date:'dd/MM/yyyy'}}
+                            {{(contract.ftDate)?"até": "Outros"}}
+                            {{contract.ltDate  | date:'dd/MM/yyyy'}}
+                        </strong>
+                        <small>{{contract.time}}</small>
+                    </p>
+                </uib-accordion-group>
+            </uib-accordion>
+        </div>
+    </div>
+    <uib-tabset>
+        <uib-tab ng-repeat="monthReport in monthReports" active="monthReport.active">
+            <uib-tab-heading>
+                <span ng-class="durationClass(monthReport.balance)">{{monthName(monthReport.month)}}</span>
+                <span class="glyphicon glyphicon-exclamation-sign text-warning"
+                      uib-tooltip="Essa página possui pontos incompletos"
+                      tooltip-append-to-body="true" ng-if="hasIncomplete(monthReport.dailyReports)"></span>
+            </uib-tab-heading>
+            <hr/>
+            <div class="panel panel-default">
+                <div class="panel-heading">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <h3>
+                                <strong>Saldo total:</strong>
+                                <span ng-class="durationClass(monthReport.balance)">{{monthReport.balance}}</span>
+                            </h3>
+                        </div>
+                        <div class="col-md-8">
+                            <p>
+                                <span class="label label-success">Saldo positivo</span>
+                                <span class="label label-danger">Saldo negativo</span>
+                                <span class="label label-info">Horas justificadas</span>
+                                <span class="label label-warning">Ponto incompleto *</span>
+                            </p>
+                            <p><small><span class="glyphicon glyphicon-star"></span> Feriado ou férias</small></p>
+                        </div>
+                    </div>
+                    <div>
+                        <p><small>* Pontos incompletos não são contabilizados nos saldos e são atualizados automaticamente até haver
+                            mudança na intranet.</small></p>
+                    </div>
+                </div>
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>Dia</th>
+                        <th>Pontos</th>
+                        <th>Ponto</th>
+                        <th>Justificado</th>
+                        <th>Saldo</th>
+                        <th>Ações</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr ng-repeat="report in monthReport.dailyReports" ng-class="tableRowClass(report)">
+                        <td>
+                            <strong>
+                                {{report.date | date:'dd/MM/yyyy'}} ({{weekDay(report.date)}})
+                                <span class="glyphicon glyphicon-star" aria-hidden="true" ng-show="isFreeDay(report)"></span>
+                            </strong>
+                        </td>
+                        <td>{{report.timeTracks.join(" - ")}}</td>
+                        <td>{{report.timeByTracks}}</td>
+                        <td>{{report.justified}}</td>
+                        <td><strong ng-class="durationClass(report.balance)">{{report.balance}}</strong></td>
+                        <td>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-default" aria-hidden="true"
+                                        ng-click="addNotePopover.setModel(report)"
+                                        uib-tooltip="{{report.note?report.note:'Adicionar nota'}}" tooltip-append-to-body="true"
+                                        uib-popover-template="addNotePopover.templateUrl" popover-append-to-body="true"
+                                        popover-title="{{report.note?'Editar':'Adicionar'}} nota" popover-trigger="outsideClick">
+                                    <span class="glyphicon glyphicon-comment" ng-class="{'text-info' : report.note }"></span>
+                                </button>
+                                <button type="button" class="btn btn-default" aria-hidden="true"
+                                        ng-click="markAsIncomplete(report.date)" ng-if="!report.incomplete"
+                                        uib-tooltip="Marcar como incompleto" tooltip-append-to-body="true">
+                                    <span class="glyphicon glyphicon-ban-circle"></span>
+                                </button>
+                                <button type="button" class="btn btn-default" aria-hidden="true"
+                                        ng-click="markAsComplete(report.date)" ng-if="report.incomplete"
+                                        uib-tooltip="Marcar como completo" tooltip-append-to-body="true">
+                                    <span class="glyphicon glyphicon-ok-circle"></span>
+                                </button>
+                                <button type="button" class="btn btn-default" aria-hidden="true"
+                                        ng-click="openTicket(report.date)" uib-tooltip="Abrir chamado"
+                                        tooltip-append-to-body="true">
+                                    <span class="glyphicon glyphicon-earphone"></span>
+                                </button>
+                                <button type="button" class="btn btn-default" aria-hidden="true"
+                                        ng-click="updateDate(report.date)" uib-tooltip="Atualizar"
+                                        tooltip-append-to-body="true">
+                                    <span class="glyphicon glyphicon-refresh"></span>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </uib-tab>
+    </uib-tabset>
+    <hr/>
+    <footer>
+        <p>Desenvolvido por: Gabriel Dias Schmoeller</p>
+    </footer>
+</div>
+
+<script type="text/javascript" src="bower_components/angular/angular.min.js"></script>
+<script type="text/javascript" src="bower_components/angular-bootstrap/ui-bootstrap-tpls.min.js"></script>
+<script type="text/javascript" src="bower_components/ngSweetAlert/SweetAlert.min.js"></script>
+<script type="text/javascript" src="bower_components/sweetalert/dist/sweetalert.min.js"></script>
+<script type="text/javascript" src="bower_components/angular-sanitize/angular-sanitize.min.js"></script>
+<script type="text/javascript" src="bower_components/ui-select/dist/select.min.js"></script>
+<script type="text/javascript" src="js/app.js"></script>
+
+<script type="text/ng-template" id="download-months.html">
+    <div class="modal-body">
+        <form class="form-inline" name="downMonthsForm" ng-submit="downMonthsForm.$valid && downMonths()">
+            <center>
+                <div class="form-group">
+                    <div class="input-group"
+                         ng-class="{ 'has-error': downMonthsForm.numMeses.$invalid && !downMonthsForm.numMeses.$pristine}">
+                        <div class="input-group-addon">
+                            <label for="downMonths">Baixar mais </label>
+                        </div>
+                        <input id="downMonths" type="number" min="1" placeholder="quantidade" ng-model="number"
+                               class="form-control" name="numMeses" ng-pattern="/^[1-9](\d*)$/" required/>
+                        <div class="input-group-addon">
+                            <label for="downMonths"> meses</label>
+                        </div>
+                    </div>
+                    <input type="submit" class="btn btn-default" value="Baixar" ng-disabled="downMonthsForm.$invalid"/>
+                </div>
+            </center>
+        </form>
+    </div>
+</script>
+<script type="text/ng-template" id="update-initial-balance.html">
+    <div class="modal-body">
+        <div class="row">
+            <div class="col-md-12">
+                <form name="initBalanceForm" class="form-horizontal" ng-submit="initBalanceForm.$valid && updateInitialBalance()">
+                    <div class="col-md-12">
+                        <div class="form-group"
+                             ng-class="{ 'has-error': initBalanceForm.saldo.$invalid && !initBalanceForm.saldo.$pristine}">
+                            <label for="initialBalance">Saldo de (ex: -HH:MM ou HH:MM):</label>
+                            <input id="initialBalance" type="text" laceholder="saldo ex: -999:59" ng-model="initialBalance"
+                                   ng-pattern="/^(-?)(\d+)\:(\d+)$/" name="saldo" class="form-control" />
+                        </div>
+                        <div class="form-group"
+                             ng-class="{ 'has-error': initBalanceForm.data.$invalid && !initBalanceForm.data.$pristine}">
+                            <label for="initialDate">No dia (dd/mm/aaaa)</label>
+                            <div class="input-group">
+                                <input id="initialDate" type="text" class="form-control" uib-datepicker-popup="dd/MM/yyyy"
+                                       ng-pattern="/^(\d{2})/(\d{2})/(\d{4})$/" name="data" ng-model="initialDate"
+                                       is-open="initialDateOpened"/>
+                                <span class="input-group-btn">
+                                    <button type="button" class="btn btn-default" ng-click="initialDateOpened=true">
+                                        <span class="glyphicon glyphicon-calendar"></span>
+                                    </button>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="form-group text-right">
+                            <input type="submit" class="btn btn-default" ng-disabled="initBalanceForm.$invalid" value="Salvar" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</script>
+<script type="text/ng-template" id="add-note-template.html">
+    <form ng-submit="addNotePopover.save()">
+        <div class="row">
+            <div class="col-md-8">
+                <input type="text" ng-model="addNotePopover.note" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <input type="submit" class="btn btn-default" value="Salvar" />
+            </div>
+        </div>
+    </form>
+</script>
+<script type="text/ng-template" id="open-ticket-template.html">
+    <div class="modal-body">
+        <div class="row">
+            <div class="col-md-12">
+                <form name="openTicketForm" class="form-horizontal" ng-submit="openTicketForm.$valid && openTicket()">
+                    <div class="col-md-12">
+                        <div class="form-group"
+                             ng-class="{ 'has-error': openTicketForm.template.$invalid && !openTicketForm.template.$pristine}">
+                            <label for="template">Tipo:</label>
+                            <select class="form-control" name="template" id="template" ng-model="template"
+                                    ng-change="setTemplate()" ng-options="y as y.name for y in templates" required>
+                            </select>
+                        </div>
+                        <div class="form-group"
+                             ng-class="{ 'has-error': openTicketForm.description.$invalid && !openTicketForm.description.$pristine}">
+                            <label for="description">Descrição:</label>
+                            <input type="text" class="form-control" name="description" id="description"
+                                   ng-model="dto.description" required/>
+                        </div>
+                        <div class="form-group"
+                             ng-class="{ 'has-error': openTicketForm.details.$invalid && !openTicketForm.details.$pristine}">
+                            <label for="details">Detalhes:</label>
+                            <textarea rows="5" type="text" class="form-control" name="details" id="details"
+                                   ng-model="dto.details" required>
+                            </textarea>
+                        </div>
+                        <div class="form-group" ng-if="template.hasPriority"
+                             ng-class="{ 'has-error': openTicketForm.priority.$invalid && !openTicketForm.priority.$pristine}">
+                            <label for="priority">Prioridade:</label>
+                            <select class="form-control" name="priority" id="priority" ng-model="dto.priority" required>
+                                <option value="12">Antes de fechar a folha</option>
+                                <option value="10">Até 24 horas</option>
+                                <option value="11">Até 48 horas</option>
+                                <option value="14">Longo Prazo</option>
+                                <option value="13">Médio Prazo</option>
+                            </select>
+                        </div>
+                        <div class="form-group" ng-if="template.hasExpectedTime"
+                             ng-class="{ 'has-error': openTicketForm.expectTime.$invalid && !openTicketForm.expectTime.$pristine}">
+                            <label for="expectTime">Tempo esperado:</label>
+                            <select class="form-control" name="expectTime" id="expectTime" ng-model="dto.expectTime" required>
+                                <option value="2">até 4 horas</option>
+                                <option value="3">até 8 horas</option>
+                                <option value="4">Médio Prazo</option>
+                                <option value="5">Longo Prazo</option>
+                            </select>
+                        </div>
+                        <div class="form-group text-right">
+                            <input type="submit" class="btn btn-default" ng-disabled="initBalanceForm.$invalid" value="Salvar" />
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</script>
+<script type="text/ng-template" id="ticket-links-template.html">
+    <div class="modal-body">
+        <div class="row">
+            <div class="col-md-12">
+                <h2>
+                    Chamado
+                    <a href="https://intranet.dm/Chamado/CadChamadoDados.aspx?SEQ_CHA={{ticket.ticketNo}}&MODE=READ"
+                       uib-tooltip="Abrir chamado na Intranet">{{ticket.ticketNo}}</a>
+                    aberto com sucesso
+                </h2>
+            </div>
+            <br />
+            <div class="col-md-12">
+                <form class="form-horizontal" ng-submit="ticket.usersLink.length>0 && linkAtTicket()">
+                    <div class="col-md-12">
+                        <div class="form-group">
+                            <label for="template">Vincular usuários:</label>
+                            <ui-select multiple ng-model="ticket.usersLink">
+                                <ui-select-match placeholder="Usuários vinculados">{{$item}}</ui-select-match>
+                                <ui-select-choices repeat="user in usersLink | filter:$select.search">
+                                    {{user}}
+                                </ui-select-choices>
+                            </ui-select>
+                        </div>
+                        <div class="form-group text-right">
+                            <button class="btn btn-default" ng-click="cancel()">Fechar</button>
+                            <input type="submit" class="btn btn-default" value="Salvar"
+                                   ng-disabled="ticket.usersLink.length==0"/>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</script>
+</body>
+</html>
